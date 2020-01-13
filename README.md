@@ -64,14 +64,6 @@ gcloud --quiet compute instances delete node2 --zone asia-northeast1-c
 gcloud --quiet compute instances delete node3 --zone asia-northeast1-c
 ```
 
-GCPインスタンスにSSHしたい場合は以下。
-
-```
-gcloud compute ssh --zone asia-northeast1-c node1
-gcloud compute ssh --zone asia-northeast1-c node2
-gcloud compute ssh --zone asia-northeast1-c node3
-```
-
 ### Dockerインストール
 
 各ノードにDockerをインストールする。
@@ -81,6 +73,36 @@ gcloud compute ssh --zone asia-northeast1-c node1 -- "curl -sSLf https://get.doc
 gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
 gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
 ```
+
+### Rancherでクラスタの登録
+
+WebブラウザからRancherにログインする。
+
+「Add Cluster」->「From existing nodes (Custom)」
+
+設定値は以下。
+
+- Cluster Name: <任意のクラスタ名>
+- Kubernetes Version: `v1.16.3-rancher1-1`(デフォルト)
+- Network Provider: `Canal (Network Isolation Available)`(デフォルト)
+- -> 「Next」
+
+「Cluster Options」
+
+- Node Role: `etcd`、`Controle Plane`にチェック、`node1`上で表示されているコマンドを実行。
+- Node Role: `etcd`、`Controle Plane`にチェック、`node2`、`node3`上で表示されているコマンドを実行。
+- この手順が終わると、画面下に"3 new nodes have registered"とでる。
+- -> 「Done」
+
+GCPインスタンスへのSSHする方法は以下。
+
+```
+gcloud compute ssh --zone asia-northeast1-c node1
+gcloud compute ssh --zone asia-northeast1-c node2
+gcloud compute ssh --zone asia-northeast1-c node3
+```
+
+## TopoLVMのデプロイ
 
 ### lvmdインストール
 
@@ -92,4 +114,3 @@ node2、3にlvmdをインストールする。
 gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
 gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
 ```
-
