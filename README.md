@@ -126,12 +126,18 @@ kubectl label namespace kube-system topolvm.cybozu.com/webhook=ignore
 ```
 git clone git@github.com:cybozu-go/topolvm.git
 cd topolvm/example
-git co -b v0.2.2
+git checkout -b v0.2.2
 
 # make setup でもいい
-go install github.com/cloudflare/cfssl/cmd/cfssl↲
-go install github.com/cloudflare/cfssl/cmd/cfssljson↲
+go install github.com/cloudflare/cfssl/cmd/cfssl
+go install github.com/cloudflare/cfssl/cmd/cfssljson
 
 make ./build/certs/server.csr ./build/certs/server.pem ./build/certs/server-key.pem
 kubectl apply -k .
+```
+
+### 動作確認
+
+```
+kubectl apply -f podpvc.yaml
 ```
