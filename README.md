@@ -136,6 +136,56 @@ make ./build/certs/server.csr ./build/certs/server.pem ./build/certs/server-key.
 kubectl apply -k .
 ```
 
+### topolvm-schedulerの設定
+
+nodeAffinityとtolerationsを変更する。
+
+今回の手順でデプロイされるControlPlaneノードには、以下のLabel/Taintが設定されている。
+
+```
+- Label
+    1. `node-role.kubernetes.io/controlplane=true`
+    2. `node-role.kubernetes.io/etcd=true`
+- Taints
+    1. `node-role.kubernetes.io/etcd=true:NoExecute`
+    2. `node-role.kubernetes.io/controlplane=true:NoSchedule`
+```
+
+topolvm-schedulerのマニフェストを編集する。
+
+```
+$ kubectl edit daemonset topolvm-scheduler -n topolvm-system
+# 以下のように編集
+ apiVersion: apps/v1
+ kind: DaemonSet
+...
+ spec:
+...
+   template:
+...
+     spec:
+       affinity:
+         nodeAffinity:
+           requiredDuringSchedulingIgnoredDuringExecution:
+             nodeSelectorTerms:
+             - matchExpressions:
+-              - key: node-role.kubernetes.io/master
++              - key: node-role.kubernetes.io/controlplane
+                 operator: Exists
+...
+       tolerations:
+       - key: CriticalAddonsOnly
+         operator: Exists
+       - effect: NoSchedule
+-        key: node-role.kubernetes.io/master
++        key: node-role.kubernetes.io/controlplane
++        operator: Exists
++      - effect: NoExecute
++        key: node-role.kubernetes.io/etcd
++        operator: Exists
+...
+```
+
 ### 動作確認
 
 ```
