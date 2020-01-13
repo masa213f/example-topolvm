@@ -142,14 +142,12 @@ nodeAffinityとtolerationsを変更する。
 
 今回の手順でデプロイされるControlPlaneノードには、以下のLabel/Taintが設定されている。
 
-```
 - Label
     1. `node-role.kubernetes.io/controlplane=true`
     2. `node-role.kubernetes.io/etcd=true`
 - Taints
     1. `node-role.kubernetes.io/etcd=true:NoExecute`
     2. `node-role.kubernetes.io/controlplane=true:NoSchedule`
-```
 
 topolvm-schedulerのマニフェストを編集する。
 
