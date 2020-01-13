@@ -4,7 +4,6 @@ Rancher + GCPのインスタンスを使って、TopoLVMKubernetesクラスタ�
 
 GKEは使用しないので注意。
 
-
 ## Rancherのデプロイ
 
 Rancher用のGCPインスタンスを生成する。
@@ -40,7 +39,6 @@ gcloud compute firewall-rules create rancher --allow tcp:80,tcp:443
 
 初回アクセス時には、adminパスワードの入力が求められるので設定すること。
 クラスタからアクセスするためのURLはとりあえずデフォルトでOK。
-
 
 ## Kubernetesクラスタの構築
 
@@ -90,17 +88,17 @@ WebブラウザからRancherにログインする。
 「Cluster Options」
 
 - Node Role: `etcd`、`Controle Plane`にチェック、`node1`上で表示されているコマンドを実行。
-- Node Role: `etcd`、`Controle Plane`にチェック、`node2`、`node3`上で表示されているコマンドを実行。
+- Node Role: `etcd`、`Controle Plane`にチェック、`node2`、`node3`上で表示されているコマンドを実行。  
+    ※ GCPインスタンスへSSHする方法は以下。
+    ```
+    gcloud compute ssh --zone asia-northeast1-c node1
+    gcloud compute ssh --zone asia-northeast1-c node2
+    gcloud compute ssh --zone asia-northeast1-c node3
+    ```
 - この手順が終わると、画面下に"3 new nodes have registered"とでる。
 - -> 「Done」
-
-GCPインスタンスへのSSHする方法は以下。
-
-```
-gcloud compute ssh --zone asia-northeast1-c node1
-gcloud compute ssh --zone asia-northeast1-c node2
-gcloud compute ssh --zone asia-northeast1-c node3
-```
+- クラスタのステータスが`Provisioning`から`Active`になるのを待つ。
+- クラスタのダッシュボードの右上「Kubeconfig File」の内容を、ローカルの`~/.kube/config`にコピーすれば、ローカルから`kubectl`が実行できる。
 
 ## TopoLVMのデプロイ
 
