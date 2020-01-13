@@ -106,9 +106,32 @@ WebブラウザからRancherにログインする。
 
 node2、3にlvmdをインストールする。
 
+以下のコマンドを実行すると、ノード上でダミーファイル(5GiB)を生成し、そのダミーファイルを使って、ボリュームグループの生成 及び `lvmd` の起動を行う。
+
 実行するスクリプトの内容は[こちら](scripts/setup-lvmd.sh)。
 
 ```
 gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
 gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
+```
+
+### `kube-system`にラベルを設定
+
+```
+kubectl label namespace kube-system topolvm.cybozu.com/webhook=ignore
+```
+
+### TopoLVMデプロイ
+
+```
+git clone git@github.com:cybozu-go/topolvm.git
+cd topolvm/example
+git co -b v0.2.2
+
+# make setup でもいい
+go install github.com/cloudflare/cfssl/cmd/cfssl↲
+go install github.com/cloudflare/cfssl/cmd/cfssljson↲
+
+make ./build/certs/server.csr ./build/certs/server.pem ./build/certs/server-key.pem
+kubectl apply -k .
 ```
