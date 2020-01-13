@@ -1,1 +1,85 @@
-# example-topolvm
+# RancherでTopoLVMの動作環境を構築する方法
+
+Rancher + GCPのインスタンスを使って、TopoLVMKubernetesクラスタを構築する。
+GKEは使用しないので注意。
+
+## Rancherのデプロイ
+
+Rancher用のGCPインスタンスを生成する。
+
+```
+gcloud compute instances create rancher \
+  --zone asia-northeast1-c \
+  --machine-type n1-standard-2 \
+  --image-project ubuntu-os-cloud \
+  --image-family ubuntu-1804-lts \
+  --boot-disk-size 200GB
+```
+
+Dockerを起動する。
+
+```
+gcloud compute ssh --zone asia-northeast1-c rancher -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
+```
+
+Rancherを起動する。
+
+```
+gcloud compute ssh --zone asia-northeast1-c rancher -- "sudo docker run -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher"
+```
+
+HTTP/HTTPSの通信を許可
+
+```
+gcloud compute firewall-rules create rancher --allow tcp:80,tcp:443
+```
+
+ブラウザで生成したGCPインスタンスにアクセスする。
+パスワードは自動生成、クラスタからアクセスするためのURLはとりあえずデフォルトでOK。
+
+
+## Kubernetesクラスタの構築
+
+### ノード生成
+
+GCPでVMインスタンスを生成する。以下のコマンドを実行すると、`asia-northeast1-c`(東京)で3台のVMインスタンス(`node1`、`node2`、`node3`)が生成される。
+
+```
+curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-node.sh | bash /dev/stdin
+```
+
+ノードを削除する場合は、以下のコマンドを実行する。
+
+```
+gcloud --quiet compute instances delete node1 --zone asia-northeast1-c
+gcloud --quiet compute instances delete node2 --zone asia-northeast1-c
+gcloud --quiet compute instances delete node3 --zone asia-northeast1-c
+```
+
+インスタンスにSSHしたい場合は以下。
+
+```
+gcloud compute ssh --zone asia-northeast1-c node1
+gcloud compute ssh --zone asia-northeast1-c node2
+gcloud compute ssh --zone asia-northeast1-c node3
+```
+
+### Dockerインストール
+
+各ノードにDockerをインストールする。
+
+```
+gcloud compute ssh --zone asia-northeast1-c node1 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
+gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
+gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
+```
+
+### lvmdインストール
+
+node2、3にlvmdをインストールする。
+
+```
+gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
+gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
+```
+
