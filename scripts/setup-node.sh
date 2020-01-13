@@ -11,6 +11,6 @@ function create_instance() {
     --boot-disk-size 200GB
 }
 
-create_instance rancher-node1
-create_instance rancher-node2
-create_instance rancher-node3
+create_instance node1
+create_instance node2
+create_instance node3
