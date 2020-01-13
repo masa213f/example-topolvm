@@ -1,7 +1,9 @@
 # RancherでTopoLVMの動作環境を構築する方法
 
 Rancher + GCPのインスタンスを使って、TopoLVMKubernetesクラスタを構築する。
+
 GKEは使用しないので注意。
+
 
 ## Rancherのデプロイ
 
@@ -35,20 +37,26 @@ gcloud compute firewall-rules create rancher --allow tcp:80,tcp:443
 ```
 
 ブラウザで生成したGCPインスタンスにアクセスする。
-パスワードは自動生成、クラスタからアクセスするためのURLはとりあえずデフォルトでOK。
+
+初回アクセス時には、adminパスワードの入力が求められるので設定すること。
+クラスタからアクセスするためのURLはとりあえずデフォルトでOK。
 
 
 ## Kubernetesクラスタの構築
 
 ### ノード生成
 
-GCPでVMインスタンスを生成する。以下のコマンドを実行すると、`asia-northeast1-c`(東京)で3台のVMインスタンス(`node1`、`node2`、`node3`)が生成される。
+GCPでVMインスタンスを生成する。
+
+以下のコマンドを実行すると、`asia-northeast1-c`(東京)で3台のVMインスタンス(`node1`、`node2`、`node3`)が生成される。
+
+実行するスクリプトの内容は[こちら](scripts/setup-node.sh)。
 
 ```
 curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-node.sh | bash /dev/stdin
 ```
 
-ノードを削除する場合は、以下のコマンドを実行する。
+なお、上記手順で生成したGCPインスタンスを削除する場合は、以下のコマンドを実行すればよい。
 
 ```
 gcloud --quiet compute instances delete node1 --zone asia-northeast1-c
@@ -56,7 +64,7 @@ gcloud --quiet compute instances delete node2 --zone asia-northeast1-c
 gcloud --quiet compute instances delete node3 --zone asia-northeast1-c
 ```
 
-インスタンスにSSHしたい場合は以下。
+GCPインスタンスにSSHしたい場合は以下。
 
 ```
 gcloud compute ssh --zone asia-northeast1-c node1
@@ -77,6 +85,8 @@ gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://get.doc
 ### lvmdインストール
 
 node2、3にlvmdをインストールする。
+
+実行するスクリプトの内容は[こちら](scripts/setup-lvmd.sh)。
 
 ```
 gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
