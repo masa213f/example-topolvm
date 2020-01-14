@@ -5,7 +5,3 @@ algorithmSource:
   policy:
     file:
       path: /var/lib/scheduler/scheduler-policy.json
-leaderElection:
-  leaderElect: true
-clientConnection:
-  kubeconfig: /etc/kubernetes/scheduler.conf
