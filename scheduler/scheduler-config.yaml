@@ -5,3 +5,5 @@ algorithmSource:
   policy:
     file:
       path: /etc/kubernetes/scheduler/scheduler-policy.json
+clientConnection:
+  kubeconfig: /etc/kubernetes/ssl/kubecfg-kube-scheduler.yaml
