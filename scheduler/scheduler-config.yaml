@@ -4,4 +4,4 @@ schedulerName: default-scheduler
 algorithmSource:
   policy:
     file:
-      path: /var/lib/scheduler/scheduler-policy.json
+      path: /etc/kubernetes/scheduler/scheduler-policy.json
