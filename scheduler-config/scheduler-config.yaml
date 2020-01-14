@@ -4,6 +4,6 @@ schedulerName: default-scheduler
 algorithmSource:
   policy:
     file:
-      path: /etc/kubernetes/scheduler/scheduler-policy.json
+      path: /etc/kubernetes/scheduler/scheduler-policy.cfg
 clientConnection:
   kubeconfig: /etc/kubernetes/ssl/kubecfg-kube-scheduler.yaml

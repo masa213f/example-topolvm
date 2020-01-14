@@ -187,8 +187,8 @@ $ kubectl edit daemonset topolvm-scheduler -n topolvm-system
 
 ```bash
 sudo mkdir -p /etc/kubernetes/scheduler
-sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-config.yaml https://raw.githubusercontent.com/masa213f/example-topolvm/master/scheduler/scheduler-config.yaml
-sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-policy.json https://raw.githubusercontent.com/masa213f/example-topolvm/master/scheduler/scheduler-policy.json
+sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-config.yaml https://raw.githubusercontent.com/masa213f/example-topolvm/master/scheduler-config/scheduler-config.yaml
+sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-policy.json https://raw.githubusercontent.com/masa213f/example-topolvm/master/scheduler-config/scheduler-policy.cfg
 ```
 
 「Edit as YAML」
