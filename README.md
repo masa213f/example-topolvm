@@ -8,7 +8,7 @@ GKEは使用しないので注意。
 
 Rancher用のGCPインスタンスを生成する。
 
-```
+```bash
 gcloud compute instances create rancher \
   --zone asia-northeast1-c \
   --machine-type n1-standard-2 \
@@ -19,19 +19,19 @@ gcloud compute instances create rancher \
 
 Dockerを起動する。
 
-```
+```bash
 gcloud compute ssh --zone asia-northeast1-c rancher -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
 ```
 
 Rancherを起動する。
 
-```
+```bash
 gcloud compute ssh --zone asia-northeast1-c rancher -- "sudo docker run -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher"
 ```
 
 HTTP/HTTPSの通信を許可
 
-```
+```bash
 gcloud compute firewall-rules create rancher --allow tcp:80,tcp:443
 ```
 
@@ -50,13 +50,13 @@ GCPでVMインスタンスを生成する。
 
 実行するスクリプトの内容は[こちら](scripts/setup-node.sh)。
 
-```
+```bash
 curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-node.sh | bash /dev/stdin
 ```
 
 なお、上記手順で生成したGCPインスタンスを削除する場合は、以下のコマンドを実行すればよい。
 
-```
+```bash
 gcloud --quiet compute instances delete node1 --zone asia-northeast1-c
 gcloud --quiet compute instances delete node2 --zone asia-northeast1-c
 gcloud --quiet compute instances delete node3 --zone asia-northeast1-c
@@ -66,7 +66,7 @@ gcloud --quiet compute instances delete node3 --zone asia-northeast1-c
 
 各ノードにDockerをインストールする。
 
-```
+```bash
 gcloud compute ssh --zone asia-northeast1-c node1 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
 gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
 gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
@@ -110,20 +110,20 @@ node2、3にlvmdをインストールする。
 
 実行するスクリプトの内容は[こちら](scripts/setup-lvmd.sh)。
 
-```
+```bash
 gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
 gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
 ```
 
 ### `kube-system`にラベルを設定
 
-```
+```bash
 kubectl label namespace kube-system topolvm.cybozu.com/webhook=ignore
 ```
 
 ### TopoLVMデプロイ
 
-```
+```bash
 git clone git@github.com:cybozu-go/topolvm.git
 cd topolvm/example
 git checkout -b v0.2.2
@@ -151,7 +151,7 @@ nodeAffinityとtolerationsを変更する。
 
 topolvm-schedulerのマニフェストを編集する。
 
-```
+```diff
 $ kubectl edit daemonset topolvm-scheduler -n topolvm-system
 # 以下のように編集
  apiVersion: apps/v1
@@ -182,6 +182,52 @@ $ kubectl edit daemonset topolvm-scheduler -n topolvm-system
 +        operator: Exists
 ...
 ```
+
+### Scheduler Extender
+
+```bash
+sudo mkdir -p /etc/kubernetes/scheduler
+sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-config.yaml https://raw.githubusercontent.com/masa213f/example-topolvm/master/scheduler/scheduler-config.yaml
+sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-policy.json https://raw.githubusercontent.com/masa213f/example-topolvm/master/scheduler/scheduler-policy.json
+```
+
+「Edit as YAML」
+
+```diff
+   services:
+     etcd:
+       backup_config:
+         enabled: true
+         interval_hours: 12
+         retention: 6
+         safe_timestamp: false
+       creation: 12h
+       extra_args:
+         election-timeout: '5000'
+         heartbeat-interval: '500'
+       gid: 0
+       retention: 72h
+       snapshot: false
+       uid: 0
+     kube-api:
+       always_pull_images: false
+       pod_security_policy: false
+       service_node_port_range: 30000-32767
+     kube-controller: {}
+     kubelet:
+       fail_swap_on: false
+       generate_serving_certificate: false
+     kubeproxy: {}
+-    scheduler: {}
++    scheduler:
++      extra_args:
++        config: /etc/kubernetes/scheduler/scheduler-config.yaml
+   ssh_agent_auth: false
+```
+
+「Save」
+
+
 
 ### 動作確認
 
