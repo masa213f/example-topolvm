@@ -4,7 +4,7 @@ schedulerName: default-scheduler
 algorithmSource:
   policy:
     file:
-      path: /var/lib/scheduler/scheduler-policy.cfg
+      path: /var/lib/scheduler/scheduler-policy.json
 leaderElection:
   leaderElect: true
 clientConnection:
