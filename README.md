@@ -174,12 +174,11 @@ $ kubectl edit daemonset topolvm-scheduler -n topolvm-system
        tolerations:
        - key: CriticalAddonsOnly
          operator: Exists
-       - effect: NoSchedule
+-      - effect: NoSchedule
 -        key: node-role.kubernetes.io/master
-+        key: node-role.kubernetes.io/controlplane
++      - key: node-role.kubernetes.io/controlplane
 +        operator: Exists
-+      - effect: NoExecute
-+        key: node-role.kubernetes.io/etcd
++      - key: node-role.kubernetes.io/etcd
 +        operator: Exists
 ...
 ```
