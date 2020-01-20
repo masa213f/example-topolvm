@@ -4,38 +4,42 @@ Rancher + GCPのインスタンスを使って、TopoLVMKubernetesクラスタ�
 
 GKEは使用しないので注意。
 
-## Rancherのデプロイ
+## Rancher Serverのデプロイ
 
 Rancher用のGCPインスタンスを生成する。
 
+以下のコマンドは`asia-northeast1-c`(東京)に、VMインスタンスを生成する。
+
 ```bash
+ZONE=asia-northeast1-c
 gcloud compute instances create rancher \
-  --zone asia-northeast1-c \
+  --zone ${ZONE} \
   --machine-type n1-standard-2 \
   --image-project ubuntu-os-cloud \
   --image-family ubuntu-1804-lts \
   --boot-disk-size 200GB
 ```
 
-Dockerを起動する。
+Dockerをインストールする。
 
 ```bash
-gcloud compute ssh --zone asia-northeast1-c rancher -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
+gcloud compute ssh --zone ${ZONE} rancher -- "curl -sSLf https://get.docker.com | sudo sh"
 ```
 
 Rancherを起動する。
 
 ```bash
-gcloud compute ssh --zone asia-northeast1-c rancher -- "sudo docker run -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher"
+gcloud compute ssh --zone ${ZONE} rancher -- "sudo docker run -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher"
 ```
 
 HTTP/HTTPSの通信を許可
 
-```bash
-gcloud compute firewall-rules create rancher --allow tcp:80,tcp:443
-```
+1. GCP Console の "VM インスタンス" ページから、上記手順で立ち上げたVMインスタンス`rancher`の設定を開く。
+2. `EDIT`をクリック。
+3. 3. `Firewalls`で`Allow HTTP traffic`と`Allow HTTPS traffic`にチェックを入れる。
+4. `Save`をクリック。
 
-ブラウザで生成したGCPインスタンスにアクセスする。
+ブラウザで生成したGCPインスタンスにアクセスする。(証明書の設定をしていないので、警告が出るがきにしない。)
 
 初回アクセス時には、adminパスワードの入力が求められるので設定すること。
 クラスタからアクセスするためのURLはとりあえずデフォルトでOK。
@@ -46,20 +50,40 @@ gcloud compute firewall-rules create rancher --allow tcp:80,tcp:443
 
 GCPでVMインスタンスを生成する。
 
-以下のコマンドを実行すると、`asia-northeast1-c`(東京)で3台のVMインスタンス(`node1`、`node2`、`node3`)が生成される。
-
-実行するスクリプトの内容は[こちら](scripts/setup-node.sh)。
+以下のコマンドを実行すると、`asia-northeast1-c`(東京)で3台のVMインスタンス(`master`、`worker1`、`worker2`)が生成される。
+`worker1`、`worker2`には、TopoLVMで使用するために、SSD(`/dev/nvme0`)を追加している。
 
 ```bash
-curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-node.sh | bash /dev/stdin
+ZONE=asia-northeast1-c
+
+gcloud compute instances create master \
+  --zone ${ZONE} \
+  --machine-type n1-standard-2 \
+  --image-project ubuntu-os-cloud \
+  --image-family ubuntu-1804-lts \
+  --boot-disk-size 200GB
+
+gcloud compute instances create worker1 \
+  --zone ${ZONE} \
+  --machine-type n1-standard-2 \
+  --local-ssd interface=nvme \
+  --image-project ubuntu-os-cloud \
+  --image-family ubuntu-1804-lts
+
+gcloud compute instances create worker2 \
+  --zone ${ZONE} \
+  --machine-type n1-standard-2 \
+  --local-ssd interface=nvme \
+  --image-project ubuntu-os-cloud \
+  --image-family ubuntu-1804-lts
 ```
 
 なお、上記手順で生成したGCPインスタンスを削除する場合は、以下のコマンドを実行すればよい。
 
 ```bash
-gcloud --quiet compute instances delete node1 --zone asia-northeast1-c
-gcloud --quiet compute instances delete node2 --zone asia-northeast1-c
-gcloud --quiet compute instances delete node3 --zone asia-northeast1-c
+gcloud --quiet compute instances delete master --zone ${ZONE}
+gcloud --quiet compute instances delete worker1 --zone ${ZONE}
+gcloud --quiet compute instances delete worker2 --zone ${ZONE}
 ```
 
 ### Dockerインストール
@@ -67,9 +91,9 @@ gcloud --quiet compute instances delete node3 --zone asia-northeast1-c
 各ノードにDockerをインストールする。
 
 ```bash
-gcloud compute ssh --zone asia-northeast1-c node1 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
-gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
-gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://get.docker.com | sudo bash /dev/stdin"
+gcloud compute ssh --zone ${ZONE} master -- "curl -sSLf https://get.docker.com | sudo sh"
+gcloud compute ssh --zone ${ZONE} worker1 -- "curl -sSLf https://get.docker.com | sudo sh"
+gcloud compute ssh --zone ${ZONE} worker2 -- "curl -sSLf https://get.docker.com | sudo sh"
 ```
 
 ### Rancherでクラスタの登録
@@ -81,59 +105,77 @@ WebブラウザからRancherにログインする。
 設定値は以下。
 
 - Cluster Name: <任意のクラスタ名>
-- Kubernetes Version: `v1.16.3-rancher1-1`(デフォルト)
-- Network Provider: `Canal (Network Isolation Available)`(デフォルト)
+- Kubernetes Version: `v1.16.4-rancher1-1`(デフォルト)
+- その他はデフォルト
 - -> 「Next」
 
 「Cluster Options」
 
-- Node Role: `etcd`、`Controle Plane`にチェック、`node1`上で表示されているコマンドを実行。
-- Node Role: `etcd`、`Controle Plane`にチェック、`node2`、`node3`上で表示されているコマンドを実行。  
-    ※ GCPインスタンスへSSHする方法は以下。
+- Node Role: `etcd`、`Controle Plane`にチェック。表示されているコマンドを`master`上でを実行する。
+    ```bash
+    gcloud compute ssh --zone ${ZONE} master
+    # ログイン後、rkeのコマンド実行。
+    exit
     ```
-    gcloud compute ssh --zone asia-northeast1-c node1
-    gcloud compute ssh --zone asia-northeast1-c node2
-    gcloud compute ssh --zone asia-northeast1-c node3
+- Node Role: `Worker`にチェック。表示されているコマンドを`worker1`、`worker2`上で実行する。
+    ```bash
+    gcloud compute ssh --zone ${ZONE} worker1
+    # ログイン後、rkeのコマンド実行。
+    exit
+
+    gcloud compute ssh --zone ${ZONE} worker2
+    # ログイン後、rkeのコマンド実行。
+    exit
     ```
 - この手順が終わると、画面下に"3 new nodes have registered"とでる。
 - -> 「Done」
 - クラスタのステータスが`Provisioning`から`Active`になるのを待つ。
 - クラスタのダッシュボードの右上「Kubeconfig File」の内容を、ローカルの`~/.kube/config`にコピーすれば、ローカルから`kubectl`が実行できる。
 
-## TopoLVMのデプロイ
+### cert-manager インストール
 
-### lvmdインストール
-
-node2、3にlvmdをインストールする。
-
-以下のコマンドを実行すると、ノード上でダミーファイル(5GiB)を生成し、そのダミーファイルを使って、ボリュームグループの生成 及び `lvmd` の起動を行う。
-
-実行するスクリプトの内容は[こちら](scripts/setup-lvmd.sh)。
-
-```bash
-gcloud compute ssh --zone asia-northeast1-c node2 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
-gcloud compute ssh --zone asia-northeast1-c node3 -- "curl -sSLf https://raw.githubusercontent.com/masa213f/example-topolvm/master/scripts/setup-lvmd.sh | sudo bash /dev/stdin"
+```
+kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.12.0/cert-manager.yaml
 ```
 
-### `kube-system`にラベルを設定
+## TopoLVMのデプロイ
+
+### lvmdの起動
+
+`worker2`も同様に実行する。
+
+```bash
+gcloud compute ssh --zone ${ZONE} worker1
+
+# VMインスタンスにログインし、以下を実行する。
+sudo vgcreate myvg /dev/nvme0n1
+
+# lvmd のインストール
+TOPOLVM_VERSION=0.2.2
+sudo mkdir -p /opt/sbin
+curl -sSLf https://github.com/cybozu-go/topolvm/releases/download/v${TOPOLVM_VERSION}/lvmd-${TOPOLVM_VERSION}.tar.gz | sudo tar xzf - -C /opt/sbin
+
+# Serviceの登録
+sudo curl -sSL -o /etc/systemd/system/lvmd.service https://raw.githubusercontent.com/cybozu-go/topolvm/v${TOPOLVM_VERSION}/deploy/systemd/lvmd.service
+sudo systemctl enable lvmd
+sudo systemctl start lvmd
+
+exit
+```
+
+### namespaceにラベルを設定
 
 ```bash
 kubectl label namespace kube-system topolvm.cybozu.com/webhook=ignore
+kubectl label namespace cert-manager topolvm.cybozu.com/webhook=ignore
 ```
 
 ### TopoLVMデプロイ
 
 ```bash
-git clone git@github.com:cybozu-go/topolvm.git
-cd topolvm/example
-git checkout -b v0.2.2
-
-# make setup でもいい
-go install github.com/cloudflare/cfssl/cmd/cfssl
-go install github.com/cloudflare/cfssl/cmd/cfssljson
-
-make ./build/certs/server.csr ./build/certs/server.pem ./build/certs/server-key.pem
-kubectl apply -k .
+TOPOLVM_VERSION=0.2.2
+kubectl apply -k https://github.com/cybozu-go/topolvm/deploy/manifests?ref=v${TOPOLVM_VERSION}
+kubectl apply -f https://raw.githubusercontent.com/cybozu-go/topolvm/v${TOPOLVM_VERSION}/deploy/manifests/certificates.yaml
 ```
 
 ### topolvm-schedulerの設定
@@ -186,13 +228,17 @@ $ kubectl edit daemonset topolvm-scheduler -n topolvm-system
 ### Scheduler Extender
 
 ```bash
+gcloud compute ssh --zone ${ZONE} master
+
+# VMインスタンス上で以下を実行する。
+TOPOLVM_VERSION=0.2.2
 sudo mkdir -p /etc/kubernetes/scheduler
 sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-config.yaml https://raw.githubusercontent.com/masa213f/example-topolvm/master/scheduler-config/scheduler-config.yaml
-sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-policy.json https://raw.githubusercontent.com/masa213f/example-topolvm/master/scheduler-config/scheduler-policy.cfg
+sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-policy.cfg https://raw.githubusercontent.com/cybozu-go/topolvm/v${TOPOLVM_VERSION}/deploy/scheduler-config/scheduler-policy.cfg
 ```
 
-「Edit as YAML」
-
+- クラスタのダッシュボードから -> 「Edit」
+- `Cluster Options`で「Edit as YAML」、以下の変更をする。
 ```diff
    services:
      etcd:
@@ -224,13 +270,41 @@ sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-policy.json https://raw.gi
 +        config: /etc/kubernetes/scheduler/scheduler-config.yaml
    ssh_agent_auth: false
 ```
-
-「Save」
-
-
+- 「Save」
 
 ### 動作確認
 
-```
-kubectl apply -f podpvc.yaml
+以下を kubectl applyする。
+
+```yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: topolvm-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: topolvm-provisioner
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+  labels:
+    app.kubernetes.io/name: my-pod
+spec:
+  containers:
+  - name: ubuntu
+    image: quay.io/cybozu/ubuntu:18.04
+    command: ["/usr/local/bin/pause"]
+    volumeMounts:
+    - mountPath: /test1
+      name: my-volume
+  volumes:
+    - name: my-volume
+      persistentVolumeClaim:
+        claimName: topolvm-pvc
 ```
