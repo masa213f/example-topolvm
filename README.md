@@ -1,14 +1,25 @@
 # RancherでTopoLVMの動作環境を構築する方法
 
-Rancher + GCPのインスタンスを使って、TopoLVMKubernetesクラスタを構築する。
+Rancher + GCPのインスタンスを使って、TopoLVMが動作するKubernetesクラスタを構築する方法を記載している。
 
-GKEは使用しないので注意。
+GKEは使用せず、RancherのCustom Cluster(RKEでデプロイされるKubernetesクラスタ)を使用している。
 
-## Rancher Serverのデプロイ
+本手順では、計4台のVMインスタンスを使用している。役割は以下のとおり。
 
-Rancher用のGCPインスタンスを生成する。
+| ホスト名  | マシンタイプ    | 用途                        | 備考                       |
+| --------- | --------------- | --------------------------- | -------------------------- |
+| `rancher` | `n1-standard-2` | Rancher Server              | HTTP/HTTPSの通信を許可     |
+| `master`  | `n1-standard-2` | Kubernets Masterノード      |                            |
+| `worker1` | `n1-standard-2` | Kubernets Worker ノード (1) | SSD追加(TopoLVMで使用する) |
+| `worker2` | `n1-standard-2` | Kubernets Worker ノード (2) | SSD追加(TopoLVMで使用する) |
 
-以下のコマンドは`asia-northeast1-c`(東京)に、VMインスタンスを生成する。
+なお、TopoLVMを動かすことを目的としているため、セキュリティだったり実運用は考慮していない。
+
+## 1. Rancher Serverのデプロイ
+
+### Rancher用のVMインスタンスを生成
+
+以下のコマンドを実行し、`asia-northeast1-c`(東京)に、VMインスタンスを生成する。
 
 ```bash
 ZONE=asia-northeast1-c
@@ -20,37 +31,39 @@ gcloud compute instances create rancher \
   --boot-disk-size 200GB
 ```
 
-Dockerをインストールする。
+生成直後は、Firewallの設定により外部からのHTTP/HTTPSの通信がブロックされる。
+以下の手順で、HTTP/HTTPSの通信を許可しておく。
+
+1. GCP Console の "VM インスタンス" ページから、上記手順で立ち上げたVMインスタンス`rancher`の設定を開く
+2. `EDIT`をクリック
+3. `Firewalls`で`Allow HTTP traffic`と`Allow HTTPS traffic`にチェックを入れる
+4. `Save`をクリック
+
+### Dockerインストール
 
 ```bash
 gcloud compute ssh --zone ${ZONE} rancher -- "curl -sSLf https://get.docker.com | sudo sh"
 ```
 
-Rancherを起動する。
+### Rancher Serverの起動
 
 ```bash
 gcloud compute ssh --zone ${ZONE} rancher -- "sudo docker run -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher"
 ```
 
-HTTP/HTTPSの通信を許可
-
-1. GCP Console の "VM インスタンス" ページから、上記手順で立ち上げたVMインスタンス`rancher`の設定を開く。
-2. `EDIT`をクリック。
-3. 3. `Firewalls`で`Allow HTTP traffic`と`Allow HTTPS traffic`にチェックを入れる。
-4. `Save`をクリック。
-
-ブラウザで生成したGCPインスタンスにアクセスする。(証明書の設定をしていないので、警告が出るがきにしない。)
+ローカルのWebブラウザから、`rancher`のExternal IPにアクセスする。
+(証明書の設定をしていないので、警告が出るが気にしない)
 
 初回アクセス時には、adminパスワードの入力が求められるので設定すること。
 クラスタからアクセスするためのURLはとりあえずデフォルトでOK。
 
-## Kubernetesクラスタの構築
+## 2. Kubernetesクラスタの構築
 
 ### ノード生成
 
 GCPでVMインスタンスを生成する。
 
-以下のコマンドを実行すると、`asia-northeast1-c`(東京)で3台のVMインスタンス(`master`、`worker1`、`worker2`)が生成される。
+以下のコマンドを実行すると、`asia-northeast1-c`(東京)に3台のVMインスタンス(`master`、`worker1`、`worker2`)が生成される。
 `worker1`、`worker2`には、TopoLVMで使用するために、SSD(`/dev/nvme0`)を追加している。
 
 ```bash
@@ -98,57 +111,55 @@ gcloud compute ssh --zone ${ZONE} worker2 -- "curl -sSLf https://get.docker.com 
 
 ### Rancherでクラスタの登録
 
-WebブラウザからRancherにログインする。
+WebブラウザからRancherのWeb UIにアクセスする。
 
-「Add Cluster」->「From existing nodes (Custom)」
+「Add Cluster」->「From existing nodes (Custom)」を選択し、新しくクラスタを登録する。
 
-設定値は以下。
+設定値は任意の値でOK(なはず)。動作確認時は、Kubernetsのバージョンをv1.16系、その他の値はデフォルトのままにした。
 
 - Cluster Name: <任意のクラスタ名>
-- Kubernetes Version: `v1.16.4-rancher1-1`(デフォルト)
-- その他はデフォルト
-- -> 「Next」
+- Cluster Options
+  - Kubernetes Version: `v1.16.4-rancher1-1`
+  - Node Options:
+    1. `etcd`、`Controle Plane`にチェック。表示されているコマンドを`master`上で実行する。
+        ```bash
+        gcloud compute ssh --zone ${ZONE} master
+        # masterにログインしたあと後、rkeのコマンドを実行する。
+        exit
+        ```
+    2. `Worker`にチェック。表示されているコマンドを`worker1`、`worker2`上で実行する。
+        ```bash
+        gcloud compute ssh --zone ${ZONE} worker1
+        # worker1にログインしたあと後、rkeのコマンドを実行する。
+        exit
 
-「Cluster Options」
+        gcloud compute ssh --zone ${ZONE} worker2
+        # worker2にログインしたあと後、rkeのコマンドを実行する。
+        exit
+        ```
+  - この手順が終わると、画面下に"3 new nodes have registered"と表示されるので「Done」。
 
-- Node Role: `etcd`、`Controle Plane`にチェック。表示されているコマンドを`master`上でを実行する。
-    ```bash
-    gcloud compute ssh --zone ${ZONE} master
-    # ログイン後、rkeのコマンド実行。
-    exit
-    ```
-- Node Role: `Worker`にチェック。表示されているコマンドを`worker1`、`worker2`上で実行する。
-    ```bash
-    gcloud compute ssh --zone ${ZONE} worker1
-    # ログイン後、rkeのコマンド実行。
-    exit
+クラスタ追加後、クラスタのステータスが`Provisioning`から`Active`になるのを待つ。
 
-    gcloud compute ssh --zone ${ZONE} worker2
-    # ログイン後、rkeのコマンド実行。
-    exit
-    ```
-- この手順が終わると、画面下に"3 new nodes have registered"とでる。
-- -> 「Done」
-- クラスタのステータスが`Provisioning`から`Active`になるのを待つ。
-- クラスタのダッシュボードの右上「Kubeconfig File」の内容を、ローカルの`~/.kube/config`にコピーすれば、ローカルから`kubectl`が実行できる。
+なお、クラスタのダッシュボードの右上「Kubeconfig File」の内容を、ローカルの`~/.kube/config`にコピーすれば、ローカルから`kubectl`が実行できる。
 
-### cert-manager インストール
+## 3. Workerノード上での準備
 
+### VGの生成
+
+`worker1`、`worker2`上で、VG(VodumeGroup)を生成する。
+
+```bash
+gcloud compute ssh --zone ${ZONE} worker1 -- sudo vgcreate myvg /dev/nvme0n1
+gcloud compute ssh --zone ${ZONE} worker2 -- sudo vgcreate myvg /dev/nvme0n1
 ```
-kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.12.0/cert-manager.yaml
-```
 
-## TopoLVMのデプロイ
+### lvmdインストール
 
-### lvmdの起動
-
-`worker2`も同様に実行する。
+以下の手順で`worker1`にlvmdをインストールする。`worker2`も同様に実行する。
 
 ```bash
 gcloud compute ssh --zone ${ZONE} worker1
-
-# VMインスタンスにログインし、以下を実行する。
-sudo vgcreate myvg /dev/nvme0n1
 
 # lvmd のインストール
 TOPOLVM_VERSION=0.2.2
@@ -163,14 +174,22 @@ sudo systemctl start lvmd
 exit
 ```
 
-### namespaceにラベルを設定
+## 4. Kubernetes上での準備
+
+### cert-managerデプロイ
+
+```
+kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.12.0/cert-manager.yaml
+```
+
+### namespaceにラベル設定
 
 ```bash
 kubectl label namespace kube-system topolvm.cybozu.com/webhook=ignore
 kubectl label namespace cert-manager topolvm.cybozu.com/webhook=ignore
 ```
 
-### TopoLVMデプロイ
+## 5. TopoLVMデプロイ
 
 ```bash
 TOPOLVM_VERSION=0.2.2
@@ -225,7 +244,7 @@ $ kubectl edit daemonset topolvm-scheduler -n topolvm-system
 ...
 ```
 
-### Scheduler Extender
+## 6. Scheduler Extenderの設定
 
 ```bash
 gcloud compute ssh --zone ${ZONE} master
@@ -235,26 +254,15 @@ TOPOLVM_VERSION=0.2.2
 sudo mkdir -p /etc/kubernetes/scheduler
 sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-config.yaml https://raw.githubusercontent.com/masa213f/example-topolvm/master/scheduler-config/scheduler-config.yaml
 sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-policy.cfg https://raw.githubusercontent.com/cybozu-go/topolvm/v${TOPOLVM_VERSION}/deploy/scheduler-config/scheduler-policy.cfg
+
+exit
 ```
 
 - クラスタのダッシュボードから -> 「Edit」
 - `Cluster Options`で「Edit as YAML」、以下の変更をする。
 ```diff
    services:
-     etcd:
-       backup_config:
-         enabled: true
-         interval_hours: 12
-         retention: 6
-         safe_timestamp: false
-       creation: 12h
-       extra_args:
-         election-timeout: '5000'
-         heartbeat-interval: '500'
-       gid: 0
-       retention: 72h
-       snapshot: false
-       uid: 0
+     ...
      kube-api:
        always_pull_images: false
        pod_security_policy: false
@@ -272,7 +280,7 @@ sudo curl -sSL -o /etc/kubernetes/scheduler/scheduler-policy.cfg https://raw.git
 ```
 - 「Save」
 
-### 動作確認
+## 動作確認
 
 以下を kubectl applyする。
 
