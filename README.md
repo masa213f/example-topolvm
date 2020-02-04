@@ -13,9 +13,9 @@ GKEは使用せず、RancherのCustom Cluster(RKEでデプロイされるKuberne
 | `worker1` | `n1-standard-2` | Kubernets Worker ノード (1) | SSD追加(TopoLVMで使用する) |
 | `worker2` | `n1-standard-2` | Kubernets Worker ノード (2) | SSD追加(TopoLVMで使用する) |
 
-なお、TopoLVMを動かすことを目的としているため、セキュリティだったり実運用は考慮していない。
+なお、TopoLVMを動かすことを目的としているため、セキュリティは考慮していない。
 
-## 1. Rancher Serverのデプロイ
+## 1. Rancher Serverの起動
 
 ### Rancher用のVMインスタンスを生成
 
@@ -143,7 +143,22 @@ WebブラウザからRancherのWeb UIにアクセスする。
 
 なお、クラスタのダッシュボードの右上「Kubeconfig File」の内容を、ローカルの`~/.kube/config`にコピーすれば、ローカルから`kubectl`が実行できる。
 
-## 3. Workerノード上での準備
+## 3. Kubernetes上での準備
+
+### cert-managerデプロイ
+
+```
+kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.12.0/cert-manager.yaml
+```
+
+### namespaceにラベル設定
+
+```bash
+kubectl label namespace kube-system topolvm.cybozu.com/webhook=ignore
+kubectl label namespace cert-manager topolvm.cybozu.com/webhook=ignore
+```
+
+## 4. lvmdインストール
 
 ### VGの生成
 
@@ -174,21 +189,6 @@ sudo systemctl start lvmd
 exit
 ```
 
-## 4. Kubernetes上での準備
-
-### cert-managerデプロイ
-
-```
-kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.12.0/cert-manager.yaml
-```
-
-### namespaceにラベル設定
-
-```bash
-kubectl label namespace kube-system topolvm.cybozu.com/webhook=ignore
-kubectl label namespace cert-manager topolvm.cybozu.com/webhook=ignore
-```
-
 ## 5. TopoLVMデプロイ
 
 ```bash
@@ -197,9 +197,9 @@ kubectl apply -k https://github.com/cybozu-go/topolvm/deploy/manifests?ref=v${TO
 kubectl apply -f https://raw.githubusercontent.com/cybozu-go/topolvm/v${TOPOLVM_VERSION}/deploy/manifests/certificates.yaml
 ```
 
-### topolvm-schedulerの設定
+## 6. topolvm-schedulerの設定
 
-nodeAffinityとtolerationsを変更する。
+nodeAffinityとtolerationsを変更し、topolvm-schedulerをmaster上に配置する。
 
 今回の手順でデプロイされるControlPlaneノードには、以下のLabel/Taintが設定されている。
 
@@ -207,8 +207,9 @@ nodeAffinityとtolerationsを変更する。
     1. `node-role.kubernetes.io/controlplane=true`
     2. `node-role.kubernetes.io/etcd=true`
 - Taints
-    1. `node-role.kubernetes.io/etcd=true:NoExecute`
-    2. `node-role.kubernetes.io/controlplane=true:NoSchedule`
+    1. `node-role.kubernetes.io/controlplane=true:NoSchedule`
+    2. `node-role.kubernetes.io/etcd=true:NoExecute`
+
 
 topolvm-schedulerのマニフェストを編集する。
 
@@ -244,7 +245,7 @@ $ kubectl edit daemonset topolvm-scheduler -n topolvm-system
 ...
 ```
 
-## 6. Scheduler Extenderの設定
+## 7. Scheduler Extensionの設定
 
 ```bash
 gcloud compute ssh --zone ${ZONE} master
