@@ -124,17 +124,17 @@ WebブラウザからRancherのWeb UIにアクセスする。
     1. `etcd`、`Controle Plane`にチェック。表示されているコマンドを`master`上で実行する。
         ```bash
         gcloud compute ssh --zone ${ZONE} master
-        # masterにログインしたあと後、rkeのコマンドを実行する。
+        # masterにログインした後、コマンドを実行する。
         exit
         ```
     2. `Worker`にチェック。表示されているコマンドを`worker1`、`worker2`上で実行する。
         ```bash
         gcloud compute ssh --zone ${ZONE} worker1
-        # worker1にログインしたあと後、rkeのコマンドを実行する。
+        # worker1にログインした後、コマンドを実行する。
         exit
 
         gcloud compute ssh --zone ${ZONE} worker2
-        # worker2にログインしたあと後、rkeのコマンドを実行する。
+        # worker2にログインした後、コマンドを実行する。
         exit
         ```
   - この手順が終わると、画面下に"3 new nodes have registered"と表示されるので「Done」。
